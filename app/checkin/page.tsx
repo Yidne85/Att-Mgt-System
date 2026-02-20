@@ -135,8 +135,8 @@ export default function CheckinPage() {
   async function stopScan() {
     const s = scannerRef.current;
     if (s) {
-      await s.stop().catch(() => {});
-      await s.clear().catch(() => {});
+      try { await s.stop(); } catch {}
+      try { s.clear(); } catch {}
     }
     scannerRef.current = null;
     setScanning(false);
