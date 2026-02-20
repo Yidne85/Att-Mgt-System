@@ -122,7 +122,7 @@ export default function ClassesPage() {
         }
         alert(`Imported ${rows.length} students.`);
       },
-      error: (err) => alert(err.message),
+      error: (err: any) => alert(err.message),
     });
   }
 
