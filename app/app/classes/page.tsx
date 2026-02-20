@@ -111,7 +111,7 @@ export default function ClassesPage() {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: async (results) => {
+      complete: async (results: any) => {
         const rows = (results.data as any[]).map(r => ({
           full_name: (r.full_name ?? r.name ?? "").toString().trim(),
           gender: (r.gender ?? "").toString().trim() || "unknown",
