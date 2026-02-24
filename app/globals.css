@@ -3,5 +3,14 @@
 @tailwind utilities;
 
 :root { color-scheme: light; }
-body { @apply bg-gray-50 text-gray-900; }
+
+html, body { height: 100%; }
+
+body {
+  @apply text-slate-900 antialiased;
+  background: transparent;
+}
+
 a { @apply text-blue-700 hover:underline; }
+
+::selection { background: rgba(59,130,246,0.18); }

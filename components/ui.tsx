@@ -1,31 +1,48 @@
-export function Card({ title, children }: { title?: string; children: React.ReactNode }) {
+import React from "react";
+
+export function Card({
+  title,
+  children,
+  className = "",
+}: {
+  title?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="bg-white border rounded-xl shadow-sm p-4">
-      {title ? <div className="font-semibold mb-3">{title}</div> : null}
+    <div className={"bg-white/90 backdrop-blur border border-slate-200 rounded-2xl shadow-sm p-5 md:p-6 " + className}>
+      {title ? <div className="font-semibold text-slate-900 mb-4 text-base md:text-lg">{title}</div> : null}
       {children}
     </div>
   );
 }
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  const { className = "", ...rest } = props;
   return (
     <input
-      {...props}
+      {...rest}
       className={
-        "w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-200 " +
-        (props.className ?? "")
+        "w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50/80 text-slate-900 " +
+        "placeholder:text-slate-400 outline-none transition " +
+        "focus:bg-white focus:border-slate-300 focus:ring-4 focus:ring-blue-500/10 " +
+        "disabled:opacity-60 disabled:cursor-not-allowed " +
+        className
       }
     />
   );
 }
 
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  const { className = "", ...rest } = props;
   return (
     <select
-      {...props}
+      {...rest}
       className={
-        "w-full border rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-blue-200 " +
-        (props.className ?? "")
+        "w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50/80 text-slate-900 outline-none transition " +
+        "focus:bg-white focus:border-slate-300 focus:ring-4 focus:ring-blue-500/10 " +
+        "disabled:opacity-60 disabled:cursor-not-allowed " +
+        className
       }
     />
   );
@@ -33,19 +50,23 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 
 export function Button({
   variant = "primary",
+  className = "",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" }) {
   const base =
-    "inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium border shadow-sm disabled:opacity-50";
+    "inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold " +
+    "transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed";
+
   const styles =
     variant === "primary"
-      ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+      ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20"
       : variant === "secondary"
-        ? "bg-white text-gray-900 border-gray-300 hover:bg-gray-50"
-        : "bg-red-600 text-white border-red-600 hover:bg-red-700";
-  return <button {...props} className={`${base} ${styles} ${props.className ?? ""}`} />;
+        ? "bg-white text-slate-900 border border-slate-200 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-blue-500/10"
+        : "bg-rose-600 text-white shadow-sm hover:bg-rose-700 focus:outline-none focus:ring-4 focus:ring-rose-500/20";
+
+  return <button {...props} className={`${base} ${styles} ${className}`} />;
 }
 
 export function Hint({ children }: { children: React.ReactNode }) {
-  return <div className="text-xs text-gray-500 mt-1">{children}</div>;
+  return <div className="text-xs text-slate-500 mt-1">{children}</div>;
 }
