@@ -42,7 +42,95 @@ export default function ReportsPage() {
 
 useEffect(() => { loadBasics(); }, []);
 
-  async function runPointsReport() {
+  
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportCsvPoints() {
+  const header = ["Student name", "Total events", "Points", "Date range"];
+  const lines = [header.join(",")].concat(
+    rows.map((r) =>
+      [r.full_name, String(r.total_events), String(r.points_sum), r.date_range]
+        .map((v) => `"${String(v).replaceAll('"', '""')}"`)
+        .join(",")
+    )
+  );
+  downloadBlob("points-summary.csv", new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" }));
+}
+
+function exportXlsxPoints() {
+  const ws = XLSX.utils.json_to_sheet(
+    rows.map((r) => ({
+      "Student name": r.full_name,
+      "Total events": r.total_events,
+      Points: Number(r.points_sum.toFixed(2)),
+      "Date range": r.date_range,
+    }))
+  );
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Points Summary");
+  XLSX.writeFile(wb, "points-summary.xlsx");
+}
+
+function exportPdfPoints() {
+  const doc = new jsPDF();
+  doc.text("Points Summary", 14, 14);
+  autoTable(doc, {
+    startY: 20,
+    head: [["Student name", "Total events", "Points", "Date range"]],
+    body: rows.map((r) => [r.full_name, r.total_events, r.points_sum.toFixed(2), r.date_range]),
+  });
+  doc.save("points-summary.pdf");
+}
+
+function exportCsvDetails() {
+  const header = ["Student name", "Attendance type", "Entry time", "Event title", "Event start"];
+  const lines = [header.join(",")].concat(
+    detailRows.map((r) =>
+      [r.full_name, r.status, r.checked_in_at, r.event_title, r.starts_at]
+        .map((v) => `"${String(v ?? "").replaceAll('"', '""')}"`)
+        .join(",")
+    )
+  );
+  downloadBlob("attendance-details.csv", new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" }));
+}
+
+function exportXlsxDetails() {
+  const ws = XLSX.utils.json_to_sheet(
+    detailRows.map((r) => ({
+      "Student name": r.full_name,
+      "Attendance type": r.status,
+      "Entry time": r.checked_in_at,
+      "Event title": r.event_title,
+      "Event start": r.starts_at,
+    }))
+  );
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Attendance Details");
+  XLSX.writeFile(wb, "attendance-details.xlsx");
+}
+
+function exportPdfDetails() {
+  const doc = new jsPDF();
+  doc.text("Attendance Details", 14, 14);
+  autoTable(doc, {
+    startY: 20,
+    head: [["Student name", "Attendance type", "Entry time", "Event title", "Event start"]],
+    body: detailRows.map((r) => [r.full_name, r.status, r.checked_in_at, r.event_title, r.starts_at]),
+    styles: { fontSize: 8 },
+  });
+  doc.save("attendance-details.pdf");
+}
+
+async function runPointsReport() {
   if (!classId || !from) { alert("Select class and FROM date"); return; }
   const toVal = to || new Date().toISOString().slice(0,10);
   const fromIso = new Date(from).toISOString();
