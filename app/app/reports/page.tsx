@@ -59,7 +59,7 @@ function exportCsvPoints() {
   const lines = [header.join(",")].concat(
     rows.map((r) =>
       [r.full_name, String(r.total_events), String(r.points_sum), r.date_range]
-        .map((v) => `"${String(v).replaceAll('"', '""')}"`)
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
         .join(",")
     )
   );
@@ -96,7 +96,7 @@ function exportCsvDetails() {
   const lines = [header.join(",")].concat(
     detailRows.map((r) =>
       [r.full_name, r.status, r.checked_in_at, r.event_title, r.starts_at]
-        .map((v) => `"${String(v ?? "").replaceAll('"', '""')}"`)
+        .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`)
         .join(",")
     )
   );
