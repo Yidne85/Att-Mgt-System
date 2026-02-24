@@ -2,20 +2,24 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import { requireProfile, UserProfile } from "../../../lib/profile";
 import { Button, Card, Input, Select, Hint } from "../../../components/ui";
 
 type Org = { id: string };
 type ClassRow = { id: string; name: string };
-type EventRow = { id: string; class_id: string; title: string; starts_at: string; late_after_minutes: number };
+type EventRow = { id: string; class_id: string; title: string; starts_at: string; ends_at: string };
 
 export default function EventsPage() {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   const [org, setOrg] = useState<Org | null>(null);
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [classId, setClassId] = useState("");
   const [title, setTitle] = useState("Class session");
   const [startsAt, setStartsAt] = useState("");
-  const [lateAfter, setLateAfter] = useState("15");
+  const [endsAt, setEndsAt] = useState("");
 
   const className = useMemo(() => classes.find(c => c.id === classId)?.name ?? "", [classes, classId]);
 
@@ -35,22 +39,26 @@ export default function EventsPage() {
 
   async function createEvent() {
     if (!org?.id || !classId || !startsAt) return;
-    await supabase.from("class_events").insert({
+    const { error } = await supabase.from("class_events").insert({
       org_id: org.id,
       class_id: classId,
       title: title.trim() || "Class session",
       starts_at: new Date(startsAt).toISOString(),
-      late_after_minutes: Number(lateAfter) || 0
+      ends_at: new Date(endsAt).toISOString(),
     });
+    if (error) { setErr(error.message); return; }
+    setMsg('Event created.');
     setTitle("Class session");
     setStartsAt("");
-    setLateAfter("15");
+    setEndsAt("");
     await load();
   }
 
   return (
     <div className="grid gap-4">
       <Card title="Create class event">
+        {msg ? <div className="mb-2 text-sm text-green-700">{msg}</div> : null}
+        {err ? <div className="mb-2 text-sm text-red-700">{err}</div> : null}
         <div className="grid gap-2 max-w-2xl">
           <div className="grid sm:grid-cols-2 gap-2">
             <div>
@@ -72,11 +80,12 @@ export default function EventsPage() {
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
             </div>
             <div>
-              <label className="text-sm font-medium">Late after (minutes)</label>
-              <Input value={lateAfter} onChange={(e) => setLateAfter(e.target.value)} inputMode="numeric" />
+              <label className="text-sm font-medium">End date & time</label>
+              <Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+              <Hint>After this time, check-in is closed.</Hint>
             </div>
           </div>
-          <Button onClick={createEvent} disabled={!classId || !startsAt}>Create event</Button>
+          <Button onClick={createEvent} disabled={!classId || !startsAt || !endsAt}>Create event</Button>
         </div>
       </Card>
 
@@ -88,7 +97,7 @@ export default function EventsPage() {
                 <th className="text-left p-2">Title</th>
                 <th className="text-left p-2">Class</th>
                 <th className="text-left p-2">Starts</th>
-                <th className="text-left p-2">Late after</th>
+                <th className="text-left p-2">Ends</th>
               </tr>
             </thead>
             <tbody>
@@ -97,7 +106,7 @@ export default function EventsPage() {
                   <td className="p-2">{ev.title}</td>
                   <td className="p-2">{classes.find(c => c.id === ev.class_id)?.name ?? "—"}</td>
                   <td className="p-2">{new Date(ev.starts_at).toLocaleString()}</td>
-                  <td className="p-2">{ev.late_after_minutes} min</td>
+                  <td className="p-2">{new Date(ev.ends_at).toLocaleString()}</td>
                 </tr>
               ))}
               {events.length === 0 ? <tr><td className="p-2 text-gray-600" colSpan={4}>No events yet.</td></tr> : null}

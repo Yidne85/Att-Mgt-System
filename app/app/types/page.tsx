@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import { requireProfile } from "../../../lib/profile";
 import { Button, Card, Input, Hint } from "../../../components/ui";
 
 type TypeRow = {
@@ -33,8 +34,10 @@ export default function TypesPage() {
   async function load() {
     const { data: sess } = await supabase.auth.getSession();
     if (!sess.session) { window.location.href = "/login"; return; }
+    const p = await requireProfile();
+    if (p.role !== "admin") { window.location.href = "/app"; return; }
     const userId = sess.session.user.id;
-    const { data: org } = await supabase.from("orgs").select("*").eq("owner_user_id", userId).single();
+    const { data: org } = await supabase.from("orgs").select("*").eq("id", p.org_id).single();
     setOrgId(org.id);
     const { data } = await supabase.from("attendance_types").select("*").eq("org_id", org.id);
     setTypes((data ?? []) as TypeRow[]);
@@ -62,6 +65,7 @@ export default function TypesPage() {
     setPoints("1");
     setStartMin("0");
     setEndMin("15");
+    setMsg('Saved.');
     await load();
   }
 

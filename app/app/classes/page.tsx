@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import { requireProfile } from "../../../lib/profile";
 import { Button, Card, Input, Select, Hint } from "../../../components/ui";
 import Papa from "papaparse";
 import QRCode from "qrcode";
@@ -33,8 +34,10 @@ export default function ClassesPage() {
     setLoading(true);
     const { data: sess } = await supabase.auth.getSession();
     if (!sess.session) { window.location.href = "/login"; return; }
-    const userId = sess.session.user.id;
-    const { data: orgRow } = await supabase.from("orgs").select("*").eq("owner_user_id", userId).single();
+      const p = await requireProfile();
+      if (p.role !== "admin") { window.location.href = "/app"; return; }
+      const userId = sess.session.user.id;
+    const { data: orgRow } = await supabase.from("orgs").select("*").eq("id", p.org_id).single();
     setOrg(orgRow);
     const { data: cls } = await supabase.from("classes").select("*").eq("org_id", orgRow.id).order("name");
     setClasses(cls ?? []);

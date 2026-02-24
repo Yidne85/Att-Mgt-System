@@ -7,7 +7,7 @@ import { Button, Card, Select, Hint } from "../../components/ui";
 
 type Org = { id: string };
 type ClassRow = { id: string; name: string };
-type EventRow = { id: string; class_id: string; title: string; starts_at: string };
+type EventRow = { id: string; title: string; starts_at: string; ends_at: string; class_id: string };
 type TypeRow = { id: string; name: string; points: number; start_minute: number; end_minute: number | null };
 
 export default function CheckinPage() {

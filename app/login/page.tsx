@@ -48,7 +48,7 @@ export default function Login() {
         </div>
         {err ? <div className="text-sm text-red-600">{err}</div> : null}
         <Button disabled={loading} type="submit">
-          {loading ? "Signing in..." : "Sign in"}
+          {loading ? "Signing in..." : "Log in"}
         </Button>
       </form>
     </Card>

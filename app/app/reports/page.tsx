@@ -2,20 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import { requireProfile, UserProfile } from "../../../lib/profile";
 import { Button, Card, Input, Select, Hint } from "../../../components/ui";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 type ClassRow = { id: string; name: string };
-type ReportRow = { student_id: string; full_name: string; points_sum: number };
+type ReportRow = { student_id: string; full_name: string; points_sum: number; total_events: number; date_range: string };
 type DetailRow = { full_name: string; status: string; checked_in_at: string; event_title: string; starts_at: string };
 
 export default function ReportsPage() {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [classes, setClasses] = useState<ClassRow[]>([]);
+  const [types, setTypes] = useState<{id:string;name:string}[]>([]);
   const [classId, setClassId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [status, setStatus] = useState<string>("");
+  const [studentName, setStudentName] = useState<string>("");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
@@ -33,109 +38,63 @@ export default function ReportsPage() {
   useEffect(() => { loadBasics(); }, []);
 
   async function runPointsReport() {
-    if (!classId || !from || !to) { alert("Select class and date range"); return; }
-    const fromIso = new Date(from).toISOString();
-    const toIso = new Date(to).toISOString();
+  if (!classId || !from) { alert("Select class and FROM date"); return; }
+  const toVal = to || new Date().toISOString().slice(0,10);
+  const fromIso = new Date(from).toISOString();
+  const toIso = new Date(toVal).toISOString();
 
-    const { data, error } = await supabase
-      .from("points_report_view")
-      .select("*")
-      .eq("class_id", classId)
-      .gte("starts_at", fromIso)
-      .lte("starts_at", toIso);
+  const { data, error } = await supabase
+    .from("points_report_view")
+    .select("*")
+    .eq("class_id", classId)
+    .gte("starts_at", fromIso)
+    .lte("starts_at", toIso);
 
-    if (error) { alert(error.message); return; }
+  if (error) { alert(error.message); return; }
 
-    const agg = new Map<string, ReportRow>();
-    for (const r of (data ?? []) as any[]) {
-      const key = r.student_id;
-      const cur = agg.get(key) ?? { student_id: key, full_name: r.full_name, points_sum: 0 };
-      cur.points_sum += Number(r.points ?? 0);
-      agg.set(key, cur);
-    }
-    const out = Array.from(agg.values()).sort((a,b) => sortDir === "desc" ? b.points_sum - a.points_sum : a.points_sum - b.points_sum);
-    setRows(out);
+  const agg = new Map<string, { student_id: string; full_name: string; points_sum: number; events: Set<string> }>();
+  for (const r of (data ?? []) as any[]) {
+    const key = r.student_id;
+    const cur = agg.get(key) ?? { student_id: key, full_name: r.full_name, points_sum: 0, events: new Set<string>() };
+    cur.points_sum += Number(r.points ?? 0);
+    cur.events.add(String(r.event_id));
+    agg.set(key, cur);
   }
+
+  const out = Array.from(agg.values()).map(v => ({
+    student_id: v.student_id,
+    full_name: v.full_name,
+    points_sum: v.points_sum,
+    total_events: v.events.size,
+    date_range: `${from} → ${toVal}`,
+  }));
+
+  out.sort((a,b) => sortDir === "desc" ? b.points_sum - a.points_sum : a.points_sum - b.points_sum);
+  setPointsRows(out as any);
+}
+
 
   async function runAttendanceDetail() {
-    if (!classId || !from || !to) { alert("Select class and date range"); return; }
-    const fromIso = new Date(from).toISOString();
-    const toIso = new Date(to).toISOString();
+  if (!classId || !from) { alert("Select class and FROM date"); return; }
+  const toVal = to || new Date().toISOString().slice(0,10);
+  const fromIso = new Date(from).toISOString();
+  const toIso = new Date(toVal).toISOString();
 
-    const { data, error } = await supabase
-      .from("attendance_detail_view")
-      .select("*")
-      .eq("class_id", classId)
-      .gte("starts_at", fromIso)
-      .lte("starts_at", toIso)
-      .order("starts_at", { ascending: true })
-      .order("checked_in_at", { ascending: true });
+  let q = supabase
+    .from("attendance_detail_view")
+    .select("*")
+    .eq("class_id", classId)
+    .gte("starts_at", fromIso)
+    .lte("starts_at", toIso);
 
-    if (error) { alert(error.message); return; }
-    setDetailRows((data ?? []) as any[]);
-  }
+  if (status) q = q.eq("status", status);
+  if (studentName.trim()) q = q.ilike("full_name", `%${studentName.trim()}%`);
 
-  function exportCsvPoints() {
-    const header = ["full_name", "points_sum"];
-    const lines = [header.join(",")].concat(rows.map(r => `${escapeCsv(r.full_name)},${r.points_sum}`));
-    downloadBlob(lines.join("\n"), "attendance_points.csv", "text/csv;charset=utf-8;");
-  }
+  const { data, error } = await q;
+  if (error) { alert(error.message); return; }
+  setDetailRows((data as any) ?? []);
+}
 
-  function exportXlsxPoints() {
-    const ws = XLSX.utils.json_to_sheet(rows.map(r => ({ FullName: r.full_name, Points: r.points_sum })));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Points");
-    XLSX.writeFile(wb, "attendance_points.xlsx");
-  }
-
-  function exportPdfPoints() {
-    const doc = new jsPDF();
-    doc.text("Attendance Points Report", 14, 14);
-    autoTable(doc, {
-      startY: 20,
-      head: [["Student", "Points"]],
-      body: rows.map(r => [r.full_name, String(r.points_sum)]),
-    });
-    doc.save("attendance_points.pdf");
-  }
-
-  function exportCsvDetails() {
-    const header = ["event_title", "event_start", "full_name", "status", "checked_in_at"];
-    const lines = [header.join(",")].concat(detailRows.map(r =>
-      `${escapeCsv(r.event_title)},${escapeCsv(new Date(r.starts_at).toLocaleString())},${escapeCsv(r.full_name)},${escapeCsv(r.status)},${escapeCsv(new Date(r.checked_in_at).toLocaleString())}`
-    ));
-    downloadBlob(lines.join("\n"), "attendance_details.csv", "text/csv;charset=utf-8;");
-  }
-
-  function exportXlsxDetails() {
-    const ws = XLSX.utils.json_to_sheet(detailRows.map(r => ({
-      Event: r.event_title,
-      EventStart: new Date(r.starts_at).toLocaleString(),
-      Student: r.full_name,
-      Status: r.status,
-      CheckedInAt: new Date(r.checked_in_at).toLocaleString(),
-    })));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Details");
-    XLSX.writeFile(wb, "attendance_details.xlsx");
-  }
-
-  function exportPdfDetails() {
-    const doc = new jsPDF();
-    doc.text("Attendance Details", 14, 14);
-    autoTable(doc, {
-      startY: 20,
-      head: [["Event", "Start", "Student", "Status", "Entry time"]],
-      body: detailRows.map(r => [
-        r.event_title,
-        new Date(r.starts_at).toLocaleString(),
-        r.full_name,
-        r.status,
-        new Date(r.checked_in_at).toLocaleTimeString(),
-      ]),
-    });
-    doc.save("attendance_details.pdf");
-  }
 
   return (
     <div className="grid gap-4">
@@ -164,8 +123,20 @@ export default function ReportsPage() {
               <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
             </div>
             <div>
-              <label className="text-sm font-medium">To</label>
+              <label className="text-sm font-medium">To (optional)</label>
               <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Attendance type</label>
+              <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="">All</option>
+                {types.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                <option value="absent">absent</option>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Student name</label>
+              <Input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Search..." />
             </div>
           </div>
 
