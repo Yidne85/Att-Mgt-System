@@ -26,16 +26,21 @@ export default function ReportsPage() {
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
 
   async function loadBasics() {
-    const { data: sess } = await supabase.auth.getSession();
-    if (!sess.session) { window.location.href = "/login"; return; }
-    const userId = sess.session.user.id;
-    const { data: org } = await supabase.from("orgs").select("*").eq("owner_user_id", userId).single();
+  const { data: sess } = await supabase.auth.getSession();
+  if (!sess.session) { window.location.href = "/login"; return; }
+  const p = await requireProfile();
+  setProfile(p);
 
-    const { data: cls } = await supabase.from("classes").select("*").eq("org_id", org.id).order("name");
-    setClasses(cls ?? []);
-  }
+  const { data: org } = await supabase.from("orgs").select("*").eq("id", p.org_id).single();
 
-  useEffect(() => { loadBasics(); }, []);
+  const { data: cls } = await supabase.from("classes").select("*").eq("org_id", org?.id).order("name");
+  setClasses((cls as any) ?? []);
+
+  const { data: t } = await supabase.from("attendance_types").select("id,name").eq("org_id", org?.id).order("name");
+  setTypes((t as any) ?? []);
+}
+
+useEffect(() => { loadBasics(); }, []);
 
   async function runPointsReport() {
   if (!classId || !from) { alert("Select class and FROM date"); return; }
@@ -70,7 +75,7 @@ export default function ReportsPage() {
   }));
 
   out.sort((a,b) => sortDir === "desc" ? b.points_sum - a.points_sum : a.points_sum - b.points_sum);
-  setPointsRows(out as any);
+  setRows(out as any);
 }
 
 
