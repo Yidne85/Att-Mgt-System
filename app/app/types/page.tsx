@@ -26,6 +26,8 @@ export default function TypesPage() {
   const [points, setPoints] = useState("1");
   const [startMin, setStartMin] = useState("0");
   const [endMin, setEndMin] = useState("15"); // empty = open-ended
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   const sorted = useMemo(() => {
     return [...types].sort((a, b) => (a.start_minute - b.start_minute) || a.name.localeCompare(b.name));
