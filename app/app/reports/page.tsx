@@ -56,14 +56,20 @@ function downloadBlob(filename: string, blob: Blob) {
 
 function exportCsvPoints() {
   const header = ["Student name", "Total events", "Points", "Date range"];
+
   const lines = [header.join(",")].concat(
     rows.map((r) =>
       [r.full_name, String(r.total_events), String(r.points_sum), r.date_range]
-        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`)
         .join(",")
     )
   );
-  downloadBlob("points-summary.csv", new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" }));
+
+  const BOM = "\ufeff"; // 👈 IMPORTANT FOR AMHARIC
+  downloadBlob(
+    "points-summary.csv",
+    new Blob([BOM + lines.join("\n")], { type: "text/csv;charset=utf-8" })
+  );
 }
 
 function exportXlsxPoints() {
