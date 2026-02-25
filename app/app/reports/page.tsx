@@ -99,6 +99,7 @@ function exportPdfPoints() {
 
 function exportCsvDetails() {
   const header = ["Student name", "Attendance type", "Entry time", "Event title", "Event start"];
+
   const lines = [header.join(",")].concat(
     detailRows.map((r) =>
       [r.full_name, r.status, r.checked_in_at, r.event_title, r.starts_at]
@@ -106,7 +107,13 @@ function exportCsvDetails() {
         .join(",")
     )
   );
-  downloadBlob("attendance-details.csv", new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" }));
+
+  const BOM = "\ufeff"; // 👈 This is the important fix
+
+  downloadBlob(
+    "attendance-details.csv",
+    new Blob([BOM + lines.join("\n")], { type: "text/csv;charset=utf-8" })
+  );
 }
 
 function exportXlsxDetails() {
