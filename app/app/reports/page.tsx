@@ -7,6 +7,7 @@ import { Button, Card, Input, Select, Hint } from "../../../components/ui";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { NOTO_ETHIOPIC_BASE64 } from "../../../lib/fonts/noto-ethiopic";
 
 type ClassRow = { id: string; name: string };
 type ReportRow = { student_id: string; full_name: string; points_sum: number; total_events: number; date_range: string };
