@@ -9,7 +9,7 @@ import QRCode from "qrcode";
 
 type Org = { id: string; name: string };
 type ClassRow = { id: string; name: string };
-type StudentRow = { id: string; full_name: string; gender: string; class_id: string; qr_data_url: string | null };
+type StudentRow = { id: string; full_name: string; gender: string; qr_data_url: string | null };
 
 function uid(len=12){
   const chars="abcdefghijklmnopqrstuvwxyz0123456789";
@@ -24,6 +24,7 @@ export default function ClassesPage() {
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [newClassName, setNewClassName] = useState("");
+  const [copyFromClassId, setCopyFromClassId] = useState<string>("");
   const [editClassName, setEditClassName] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -45,12 +46,21 @@ export default function ClassesPage() {
   }
 
   async function loadStudents(classId: string) {
-    setSelectedClass(classId);
-    const { data: st } = await supabase.from("students").select("*").eq("class_id", classId).order("full_name");
-    setStudents(st ?? []);
-    const cr = classes.find(c => c.id === classId);
-    setEditClassName(cr?.name ?? "");
-  }
+  setSelectedClass(classId);
+  // Load students enrolled in this class via class_students join table
+  const { data: cs, error } = await supabase
+    .from("class_students")
+    .select("student:students(id,full_name,gender,qr_data_url)")
+    .eq("class_id", classId)
+    .order("created_at", { ascending: true });
+
+  if (error) console.error(error);
+  const st = (cs ?? []).map((r: any) => r.student).filter(Boolean);
+  setStudents(st);
+  const cr = classes.find((c) => c.id === classId);
+  setEditClassName(cr?.name ?? "");
+}
+
 
   useEffect(() => { loadAll(); }, []);
 
@@ -62,12 +72,43 @@ export default function ClassesPage() {
   }, [classes, selectedClass]);
 
   async function createClass() {
-    if (!org?.id || !newClassName.trim()) return;
-    const { error } = await supabase.from("classes").insert({ org_id: org.id, name: newClassName.trim() });
-    if (error) { alert(error.message); return; }
-    setNewClassName("");
-    await loadAll();
+  if (!org?.id || !newClassName.trim()) return;
+
+  const { data: created, error } = await supabase
+    .from("classes")
+    .insert({ org_id: org.id, name: newClassName.trim() })
+    .select("id")
+    .single();
+
+  if (error) {
+    alert(error.message);
+    return;
   }
+
+  // Optional: copy students from another class (reuse same student IDs / QR codes)
+  const newClassId = created.id as string;
+  if (copyFromClassId) {
+    const { data: existingEnrollments, error: e2 } = await supabase
+      .from("class_students")
+      .select("student_id")
+      .eq("class_id", copyFromClassId);
+
+    if (e2) {
+      alert(e2.message);
+    } else {
+      const rows = (existingEnrollments ?? []).map((r: any) => ({ class_id: newClassId, student_id: r.student_id }));
+      if (rows.length) {
+        const { error: e3 } = await supabase.from("class_students").insert(rows);
+        if (e3) alert(e3.message);
+      }
+    }
+  }
+
+  setNewClassName("");
+  setCopyFromClassId("");
+  await loadAll();
+}
+
 
   async function updateClass() {
     if (!selectedClass || !editClassName.trim()) return;
@@ -87,27 +128,71 @@ export default function ClassesPage() {
   }
 
   async function addStudent(full_name: string, gender: string) {
-    if (!selectedClass) return;
+  if (!selectedClass || !org) return;
+
+  const name = full_name.toString().trim();
+  if (!name) return;
+
+  // Try to reuse existing student in this org (basic de-dup by name+gender)
+  const { data: existing } = await supabase
+    .from("students")
+    .select("id,full_name,gender,qr_data_url")
+    .eq("org_id", org.id)
+    .ilike("full_name", name)
+    .eq("gender", gender)
+    .limit(1);
+
+  let studentId: string | null = existing && existing[0] ? existing[0].id : null;
+
+  if (!studentId) {
     const student_uid = uid(14);
     const qrPayload = JSON.stringify({ student_uid });
     const qr_data_url = await QRCode.toDataURL(qrPayload, { margin: 1, scale: 6 });
-    const { error } = await supabase.from("students").insert({
-      class_id: selectedClass,
-      student_uid,
-      full_name,
-      gender,
-      qr_data_url
-    });
-    if (error) alert(error.message);
-    await loadStudents(selectedClass);
+
+    const { data: created, error: createErr } = await supabase
+      .from("students")
+      .insert({
+        org_id: org.id,
+        student_uid,
+        full_name: name,
+        gender,
+        qr_data_url,
+      })
+      .select("id")
+      .single();
+
+    if (createErr) {
+      alert(createErr.message);
+      return;
+    }
+    studentId = created.id;
   }
 
+  // Enroll into class (one QR across classes)
+  const { error: enrollErr } = await supabase.from("class_students").insert({
+    class_id: selectedClass,
+    student_id: studentId,
+  });
+
+  if (enrollErr) alert(enrollErr.message);
+  await loadStudents(selectedClass);
+}
+
+
   async function deleteStudent(studentId: string) {
-    if (!confirm("Delete this student?")) return;
-    const { error } = await supabase.from("students").delete().eq("id", studentId);
-    if (error) { alert(error.message); return; }
-    await loadStudents(selectedClass);
-  }
+  if (!selectedClass) return;
+  if (!confirm("Remove this student from this class?")) return;
+
+  const { error } = await supabase
+    .from("class_students")
+    .delete()
+    .eq("class_id", selectedClass)
+    .eq("student_id", studentId);
+
+  if (error) alert(error.message);
+  await loadStudents(selectedClass);
+}
+
 
   async function onCsvUpload(file: File) {
     if (!selectedClass) { alert("Select a class first"); return; }
@@ -132,11 +217,19 @@ export default function ClassesPage() {
   return (
     <div className="grid gap-4">
       <Card title="Create class">
-        <div className="grid sm:grid-cols-3 gap-2 max-w-2xl">
-          <Input placeholder="Class name" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} />
-          <Button onClick={createClass} disabled={!newClassName.trim() || !org?.id}>Create</Button>
-        </div>
-      </Card>
+  <div className="grid sm:grid-cols-3 gap-2 max-w-3xl">
+    <Input placeholder="Class name" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} />
+    <Select value={copyFromClassId} onChange={(e) => setCopyFromClassId(e.target.value)}>
+      <option value="">(Optional) Copy students from class…</option>
+      {classes.map((c) => (
+        <option key={c.id} value={c.id}>{c.name}</option>
+      ))}
+    </Select>
+    <Button onClick={createClass} disabled={!newClassName.trim() || !org?.id}>Create</Button>
+  </div>
+  <Hint>Tip: Copying students keeps the same QR code across classes.</Hint>
+</Card>
+
 
       <Card title="Classes">
         {loading ? <div className="text-sm text-gray-600">Loading…</div> : (

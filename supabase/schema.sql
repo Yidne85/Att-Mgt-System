@@ -31,13 +31,21 @@ create table if not exists public.classes (
 
 create table if not exists public.students (
   id uuid primary key default uuid_generate_v4(),
-  class_id uuid not null references public.classes(id) on delete cascade,
+  org_id uuid not null references public.orgs(id) on delete cascade,
   student_uid text not null unique,
   full_name text not null,
   gender text not null default 'unknown',
   qr_data_url text,
   created_at timestamptz not null default now()
 );
+
+create table if not exists public.class_students (
+  class_id uuid not null references public.classes(id) on delete cascade,
+  student_id uuid not null references public.students(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (class_id, student_id)
+);
+
 
 create table if not exists public.class_events (
   id uuid primary key default uuid_generate_v4(),
@@ -97,11 +105,13 @@ select
   s.full_name,
   coalesce(t.points, 0) as points
 from public.class_events e
-join public.students s on s.class_id = e.class_id
+join public.class_students cs on cs.class_id = e.class_id
+join public.students s on s.id = cs.student_id
 left join public.attendance a on a.event_id = e.id and a.student_id = s.id
 left join public.classes c on c.id = e.class_id
 left join public.orgs o on o.id = c.org_id
 left join public.attendance_types t on t.org_id = o.id and t.name = coalesce(a.status, 'absent');
+
 
 -- RLS (Row Level Security) - keep data private per admin/org
 alter table public.orgs enable row level security;

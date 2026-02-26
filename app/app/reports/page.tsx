@@ -7,7 +7,6 @@ import { Button, Card, Input, Select, Hint } from "../../../components/ui";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { NOTO_ETHIOPIC_BASE64 } from "../../../lib/fonts/noto-ethiopic";
 
 type ClassRow = { id: string; name: string };
 type ReportRow = { student_id: string; full_name: string; points_sum: number; total_events: number; date_range: string };
@@ -57,20 +56,14 @@ function downloadBlob(filename: string, blob: Blob) {
 
 function exportCsvPoints() {
   const header = ["Student name", "Total events", "Points", "Date range"];
-
   const lines = [header.join(",")].concat(
     rows.map((r) =>
       [r.full_name, String(r.total_events), String(r.points_sum), r.date_range]
-        .map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`)
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
         .join(",")
     )
   );
-
-  const BOM = "\ufeff"; // 👈 IMPORTANT FOR AMHARIC
-  downloadBlob(
-    "points-summary.csv",
-    new Blob([BOM + lines.join("\n")], { type: "text/csv;charset=utf-8" })
-  );
+  downloadBlob("points-summary.csv", new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" }));
 }
 
 function exportXlsxPoints() {
@@ -100,7 +93,6 @@ function exportPdfPoints() {
 
 function exportCsvDetails() {
   const header = ["Student name", "Attendance type", "Entry time", "Event title", "Event start"];
-
   const lines = [header.join(",")].concat(
     detailRows.map((r) =>
       [r.full_name, r.status, r.checked_in_at, r.event_title, r.starts_at]
@@ -108,13 +100,7 @@ function exportCsvDetails() {
         .join(",")
     )
   );
-
-  const BOM = "\ufeff"; // 👈 This is the important fix
-
-  downloadBlob(
-    "attendance-details.csv",
-    new Blob([BOM + lines.join("\n")], { type: "text/csv;charset=utf-8" })
-  );
+  downloadBlob("attendance-details.csv", new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" }));
 }
 
 function exportXlsxDetails() {
