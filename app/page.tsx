@@ -4,7 +4,7 @@ export default function Home() {
   return (
     <div className="grid gap-4">
       <div className="bg-white border rounded-xl shadow-sm p-6">
-        <h1 className="text-xl font-semibold mb-2">Attendance QR</h1>
+        <h1 className="text-xl font-semibold mb-2">የአባላት ክትትል</h1>
         <p className="text-sm text-gray-600">
           Manage classes, students, events, and collect attendance using QR codes from a phone camera.
         </p>
