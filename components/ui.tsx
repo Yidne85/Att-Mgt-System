@@ -52,21 +52,22 @@ export function Button({
   variant = "primary",
   className = "",
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "primary" | "secondary" | "danger";
+}) {
   const base =
     "inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold " +
     "transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed";
 
   const styles =
     variant === "primary"
-      ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20"
+      ? "bg-brand text-white shadow-sm hover:bg-brand-dark focus:outline-none focus:ring-4 focus:ring-brand/30"
       : variant === "secondary"
-        ? "bg-white text-slate-900 border border-slate-200 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-blue-500/10"
-        : "bg-rose-600 text-white shadow-sm hover:bg-rose-700 focus:outline-none focus:ring-4 focus:ring-rose-500/20";
+        ? "bg-white text-brand border border-brand shadow-sm hover:bg-brand/10 focus:outline-none focus:ring-4 focus:ring-brand/20"
+        : "bg-red-700 text-white shadow-sm hover:bg-red-800 focus:outline-none focus:ring-4 focus:ring-red-600/30";
 
   return <button {...props} className={`${base} ${styles} ${className}`} />;
 }
-
 export function Hint({ children }: { children: React.ReactNode }) {
   return <div className="text-xs text-slate-500 mt-1">{children}</div>;
 }
