@@ -29,21 +29,33 @@ export default function CheckinPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: sess } = await supabase.auth.getSession();
-      if (!sess.session) { window.location.href = "/login"; return; }
-      const userId = sess.session.user.id;
-      const { data: orgRow } = await supabase.from("orgs").select("*").eq("owner_user_id", userId).single();
-      setOrg(orgRow);
+    const { data: sess } = await supabase.auth.getSession();
+    if (!sess.session) { window.location.href = "/login"; return; }
+    const userId = sess.session.user.id;
 
-      const { data: cls } = await supabase.from("classes").select("*").eq("org_id", orgRow.id).order("name");
-      setClasses(cls ?? []);
+    const { data: orgRow } = await supabase.from("orgs").select("*").eq("owner_user_id", userId).single();
+    setOrg(orgRow);
 
-      const { data: ev } = await supabase.from("class_events").select("*").eq("org_id", orgRow.id).order("starts_at", { ascending: false });
+    const { data: cls } = await supabase.from("classes").select("*").eq("org_id", orgRow.id).order("name");
+    setClasses(cls ?? []);
+
+    // ✅ FIXED: fetch events via class_id list
+    const classIds = (cls ?? []).map((c) => c.id);
+    if (classIds.length > 0) {
+      const { data: ev } = await supabase
+        .from("class_events")
+        .select("*")
+        .in("class_id", classIds)
+        .order("starts_at", { ascending: false });
       setEvents(ev ?? []);
+    } else {
+      setEvents([]);
+    }
 
-      const { data: t } = await supabase.from("attendance_types").select("*").eq("org_id", orgRow.id);
-      setTypes((t ?? []) as any[]);
-    })();
+    const { data: t } = await supabase.from("attendance_types").select("*").eq("org_id", orgRow.id);
+    setTypes((t ?? []) as any[]);
+  })();
+}
   }, []);
 
   useEffect(() => {
