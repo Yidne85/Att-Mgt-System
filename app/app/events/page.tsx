@@ -23,24 +23,54 @@ export default function EventsPage() {
 
   const className = useMemo(() => classes.find(c => c.id === classId)?.name ?? "", [classes, classId]);
 
-  async function load() {
-    const { data: sess } = await supabase.auth.getSession();
-    if (!sess.session) { window.location.href = "/login"; return; }
-    const userId = sess.session.user.id;
-    const { data: orgRow } = await supabase.from("orgs").select("*").eq("owner_user_id", userId).single();
-    setOrg(orgRow);
-    const { data: cls } = await supabase.from("classes").select("*").eq("org_id", orgRow.id).order("name");
-    setClasses(cls ?? []);
-    const { data: ev } = await supabase.from("class_events").select("*").eq("org_id", orgRow.id).order("starts_at", { ascending: false });
-    setEvents(ev ?? []);
+  async function load() async function load() {
+  const { data: sess } = await supabase.auth.getSession();
+  if (!sess.session) {
+    window.location.href = "/login";
+    return;
   }
+
+  const userId = sess.session.user.id;
+
+  // Get org
+  const { data: orgRow } = await supabase
+    .from("orgs")
+    .select("*")
+    .eq("owner_user_id", userId)
+    .single();
+
+  setOrg(orgRow);
+
+  // Get classes in this org
+  const { data: cls } = await supabase
+    .from("classes")
+    .select("*")
+    .eq("org_id", orgRow.id)
+    .order("name");
+
+  setClasses(cls ?? []);
+
+  // ✅ Load events using class_id instead of org_id
+  const classIds = (cls ?? []).map((c) => c.id);
+
+  if (classIds.length > 0) {
+    const { data: ev } = await supabase
+      .from("class_events")
+      .select("*")
+      .in("class_id", classIds)
+      .order("starts_at", { ascending: false });
+
+    setEvents(ev ?? []);
+  } else {
+    setEvents([]);
+  }
+}
 
   useEffect(() => { load(); }, []);
 
   async function createEvent() {
     if (!org?.id || !classId || !startsAt) return;
     const { error } = await supabase.from("class_events").insert({
-      org_id: org.id,
       class_id: classId,
       title: title.trim() || "Class session",
       starts_at: new Date(startsAt).toISOString(),
