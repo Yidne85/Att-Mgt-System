@@ -23,7 +23,7 @@ export default function EventsPage() {
 
   const className = useMemo(() => classes.find(c => c.id === classId)?.name ?? "", [classes, classId]);
 
-  async function load() async function load() {
+  async function load() {
   const { data: sess } = await supabase.auth.getSession();
   if (!sess.session) {
     window.location.href = "/login";
