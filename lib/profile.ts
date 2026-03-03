@@ -16,7 +16,7 @@ export async function getMyProfile(): Promise<UserProfile | null> {
     .from("user_profiles")
     .select("*")
     .eq("user_id", sess.session.user.id)
-    .single();
+    .maybeSingle();
   if (error) return null;
   return data as any;
 }
