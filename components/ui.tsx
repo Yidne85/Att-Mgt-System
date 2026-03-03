@@ -55,18 +55,18 @@ export function Button({
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" }) {
   const base =
     "inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold " +
-    "transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed";
+    "transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed " +
+    "focus:outline-none focus:ring-4";
 
   const styles =
-  variant === "primary"
-    ? "bg-brand text-white shadow-sm hover:bg-brand-dark focus:outline-none focus:ring-4 focus:ring-brand/20"
-    : variant === "secondary"
-      ? "bg-white text-slate-900 border border-slate-200 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand/10"
-      : "bg-rose-600 text-white shadow-sm hover:bg-rose-700 focus:outline-none focus:ring-4 focus:ring-rose-500/20";
+    variant === "primary"
+      ? "bg-brand text-white hover:bg-brand-dark focus:ring-brand/25 shadow-sm"
+      : variant === "secondary"
+        ? "bg-white text-slate-900 border border-slate-200 hover:bg-slate-50 focus:ring-brand/15 shadow-sm"
+        : "bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-500/25 shadow-sm";
 
   return <button {...props} className={`${base} ${styles} ${className}`} />;
 }
-
 export function Hint({ children }: { children: React.ReactNode }) {
   return <div className="text-xs text-slate-500 mt-1">{children}</div>;
 }
