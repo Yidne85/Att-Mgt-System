@@ -63,7 +63,7 @@ export default function AppHeader() {
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
         {/* Brand should always go to landing page, not sign out */}
         <Link href="/" className="font-semibold tracking-tight">
-          Attendance QR
+         ጸባዖት የቀሪ መቆጣጠሪያ
         </Link>
 
         {hasSession ? (
