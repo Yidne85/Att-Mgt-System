@@ -1,31 +1,21 @@
-export type UserRole = "admin" | "support";
-
-export type UserProfile = {
-  user_id: string;
-  org_id: string;
-  username: string;
-  role: UserRole;
-};
-
-import { supabase } from "./supabase";
-
-export async function getMyProfile(): Promise<UserProfile | null> {
+export async function requireProfile() {
   const { data: sess } = await supabase.auth.getSession();
-  if (!sess.session) return null;
-  const { data, error } = await supabase
+  if (!sess.session) throw new Error("Not logged in");
+
+  const userId = sess.session.user.id;
+
+  const { data: profile, error } = await supabase
     .from("user_profiles")
     .select("*")
-    .eq("user_id", sess.session.user.id)
+    .eq("user_id", userId)
     .maybeSingle();
-  if (error) return null;
-  return data as any;
-}
 
-export async function requireProfile(): Promise<UserProfile> {
-  const p = await getMyProfile();
-  if (!p) {
-    window.location.href = "/login";
-    throw new Error("No profile/session");
+  if (error) throw error;
+
+  if (!profile) {
+    // IMPORTANT: show a friendly message instead of crashing
+    throw new Error("User profile not found. Please create the admin/support user first.");
   }
-  return p;
+
+  return profile;
 }
