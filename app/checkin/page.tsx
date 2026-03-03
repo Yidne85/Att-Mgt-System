@@ -14,7 +14,7 @@ type AttendanceRow = {
   id: string;
   status: string;
   checked_in_at: string;
-  student: { full_name: string } | null;
+  student: { full_name: string } | { full_name: string }[] | null;
 };
 
 export default function CheckinPage() {
@@ -85,7 +85,14 @@ export default function CheckinPage() {
         .order("checked_in_at", { ascending: true });
 
       if (error) { console.error(error); setRows([]); return; }
-      setRows((data as AttendanceRow[]) ?? []);
+     const normalized: AttendanceRow[] = (data ?? []).map((r: any) => ({
+  id: r.id,
+  status: r.status,
+  checked_in_at: r.checked_in_at,
+  student: r.student ?? null,
+}));
+
+setRows(normalized);
     })();
   }, [eventId]);
 
@@ -267,7 +274,7 @@ export default function CheckinPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="border-t">
-                  <td className="p-2">{r.student?.full_name ?? "—"}</td>
+                  <td className="p-2">{Array.isArray(r.student) ? r.student?.[0]?.full_name : r.student?.full_name}</td>
                   <td className="p-2">{r.status}</td>
                   <td className="p-2">{new Date(r.checked_in_at).toLocaleTimeString()}</td>
                 </tr>
