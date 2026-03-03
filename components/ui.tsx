@@ -25,7 +25,7 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
       className={
         "w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50/80 text-slate-900 " +
         "placeholder:text-slate-400 outline-none transition " +
-        "focus:bg-white focus:border-slate-300 focus:ring-4 focus:ring-blue-500/10 " +
+        "focus:bg-brand focus:border-slate-300 focus:ring-4 focus:ring-brand-500/10 " +
         "disabled:opacity-60 disabled:cursor-not-allowed " +
         className
       }
@@ -40,7 +40,7 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
       {...rest}
       className={
         "w-full border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50/80 text-slate-900 outline-none transition " +
-        "focus:bg-white focus:border-slate-300 focus:ring-4 focus:ring-blue-500/10 " +
+        "focus:bg-white focus:border-slate-300 focus:ring-4 focus:ring-brand-500/10 " +
         "disabled:opacity-60 disabled:cursor-not-allowed " +
         className
       }
@@ -58,11 +58,11 @@ export function Button({
     "transition active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed";
 
   const styles =
-    variant === "primary"
-      ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20"
-      : variant === "secondary"
-        ? "bg-white text-slate-900 border border-slate-200 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-blue-500/10"
-        : "bg-rose-600 text-white shadow-sm hover:bg-rose-700 focus:outline-none focus:ring-4 focus:ring-rose-500/20";
+  variant === "primary"
+    ? "bg-brand text-white shadow-sm hover:bg-brand-dark focus:outline-none focus:ring-4 focus:ring-brand/20"
+    : variant === "secondary"
+      ? "bg-white text-slate-900 border border-slate-200 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-brand/10"
+      : "bg-rose-600 text-white shadow-sm hover:bg-rose-700 focus:outline-none focus:ring-4 focus:ring-rose-500/20";
 
   return <button {...props} className={`${base} ${styles} ${className}`} />;
 }
