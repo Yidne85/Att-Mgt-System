@@ -15,46 +15,26 @@ export default function Dashboard() {
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-useEffect(() => {
-  void (async () => {
-    setLoading(true);
-    try {
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
       const { data: sess } = await supabase.auth.getSession();
       if (!sess.session) {
         window.location.href = "/login";
         return;
       }
-
       const p = await requireProfile();
       setProfile(p);
 
-      const { data: orgRow, error: orgErr } = await supabase
-        .from("orgs")
-        .select("*")
-        .eq("id", p.org_id)
-        .maybeSingle();
-
-      if (orgErr) throw orgErr;
-      if (!orgRow) throw new Error("Org not found for this user.");
-
+      const { data: orgRow } = await supabase.from("orgs").select("*").eq("id", p.org_id).single();
       setOrg(orgRow as any);
 
-      const { data: cls, error: clsErr } = await supabase
-        .from("classes")
-        .select("id,name")
-        .eq("org_id", p.org_id)
-        .order("name");
-
-      if (clsErr) throw clsErr;
+      const { data: cls } = await supabase.from("classes").select("id,name").eq("org_id", p.org_id).order("name");
       setClasses((cls as any) ?? []);
-    } catch (e: any) {
-      console.error(e);
-      alert(e?.message ?? "Failed to load dashboard");
-    } finally {
       setLoading(false);
-    }
-  })();
-}, []);
+    })();
+  }, []);
+
   return (
     <div className="grid gap-4">
       <Card title="Quick actions">

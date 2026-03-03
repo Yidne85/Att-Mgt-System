@@ -5,7 +5,7 @@ import { supabase } from "../../../lib/supabase";
 import { requireProfile } from "../../../lib/profile";
 import { Button, Card, Input, Select, Hint } from "../../../components/ui";
 import Papa from "papaparse";
-import QRCode from "qrcode";
+import { makeStudentQrDataUrl } from "../../../lib/qr";
 
 type Org = { id: string; name: string };
 type ClassRow = { id: string; name: string };
@@ -73,6 +73,19 @@ export default function ClassesPage() {
 
   async function createClass() {
   if (!org?.id || !newClassName.trim()) return;
+
+  // Validate unique class name (per organization)
+  const { data: existing } = await supabase
+    .from("classes")
+    .select("id")
+    .eq("org_id", org.id)
+    .ilike("name", newClassName.trim())
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    alert("Class name already exists. Please use a different name.");
+    return;
+  }
 
   const { data: created, error } = await supabase
     .from("classes")
@@ -146,8 +159,7 @@ export default function ClassesPage() {
 
   if (!studentId) {
     const student_uid = uid(14);
-    const qrPayload = JSON.stringify({ student_uid });
-    const qr_data_url = await QRCode.toDataURL(qrPayload, { margin: 1, scale: 6 });
+    const qr_data_url = await makeStudentQrDataUrl({ student_uid }, name);
 
     const { data: created, error: createErr } = await supabase
       .from("students")
@@ -196,7 +208,19 @@ export default function ClassesPage() {
 
   async function onCsvUpload(file: File) {
     if (!selectedClass) { alert("Select a class first"); return; }
-    Papa.parse(file, {
+
+    // Read as UTF-8 text so Amharic characters are preserved
+    const text = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result ?? ""));
+      r.onerror = () => reject(new Error("Failed to read file"));
+      r.readAsText(file, "utf-8");
+    });
+
+    // Strip BOM if present
+    const cleaned = text.replace(/^\uFEFF/, "");
+
+    Papa.parse(cleaned, {
       header: true,
       skipEmptyLines: true,
       complete: async (results: any) => {
