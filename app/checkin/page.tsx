@@ -59,7 +59,14 @@ export default function CheckinPage() {
           .order("starts_at", { ascending: false });
 
         if (evErr) { alert(evErr.message); return; }
-        setEvents((ev as EventRow[]) ?? []);
+       const now = Date.now();
+
+const openEvents = (ev ?? []).filter((e: any) => {
+  const ends = new Date(e.ends_at).getTime();
+  return Number.isFinite(ends) && ends > now; // only show events that haven't ended
+});
+
+setEvents(openEvents as any[]);
       } else {
         setEvents([]);
       }
