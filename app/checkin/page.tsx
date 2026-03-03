@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { supabase } from "../../lib/supabase";
+import { requireProfile } from "../../lib/profile";
 import { Button, Card, Select, Hint } from "../../components/ui";
 
 type Org = { id: string };
@@ -21,69 +22,140 @@ export default function CheckinPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [scanning, setScanning] = useState(false);
 
-  const event = useMemo(() => events.find(e => e.id === eventId) ?? null, [events, eventId]);
+  const event = useMemo(() => events.find((e) => e.id === eventId) ?? null, [events, eventId]);
 
   const sortedTypes = useMemo(() => {
     return [...types].sort((a, b) => (a.start_minute - b.start_minute) || a.name.localeCompare(b.name));
   }, [types]);
 
+  // ✅ FIXED: correct braces + uses profile.org_id (works for admin/support)
   useEffect(() => {
-    (async () => {
-    const { data: sess } = await supabase.auth.getSession();
-    if (!sess.session) { window.location.href = "/login"; return; }
-    const userId = sess.session.user.id;
+    void (async () => {
+      const { data: sess } = await supabase.auth.getSession();
+      if (!sess.session) {
+        window.location.href = "/login";
+        return;
+      }
 
-    const { data: orgRow } = await supabase.from("orgs").select("*").eq("owner_user_id", userId).single();
-    setOrg(orgRow);
+      const p = await requireProfile();
+      if (!p?.org_id) {
+        alert("User profile not found.");
+        return;
+      }
 
-    const { data: cls } = await supabase.from("classes").select("*").eq("org_id", orgRow.id).order("name");
-    setClasses(cls ?? []);
+      const { data: orgRow, error: orgErr } = await supabase
+        .from("orgs")
+        .select("id")
+        .eq("id", p.org_id)
+        .single();
 
-    // ✅ FIXED: fetch events via class_id list
-    const classIds = (cls ?? []).map((c) => c.id);
-    if (classIds.length > 0) {
-      const { data: ev } = await supabase
-        .from("class_events")
-        .select("*")
-        .in("class_id", classIds)
-        .order("starts_at", { ascending: false });
-      setEvents(ev ?? []);
-    } else {
-      setEvents([]);
-    }
+      if (orgErr || !orgRow) {
+        alert(orgErr?.message ?? "Org not found");
+        return;
+      }
 
-    const { data: t } = await supabase.from("attendance_types").select("*").eq("org_id", orgRow.id);
-    setTypes((t ?? []) as any[]);
-  })();
-}
+      setOrg(orgRow);
+
+      const { data: cls, error: clsErr } = await supabase
+        .from("classes")
+        .select("id,name")
+        .eq("org_id", orgRow.id)
+        .order("name");
+
+      if (clsErr) {
+        alert(clsErr.message);
+        setClasses([]);
+        setEvents([]);
+        setTypes([]);
+        return;
+      }
+
+      setClasses((cls ?? []) as ClassRow[]);
+
+      // ✅ Events by class_id list (NO class_events.org_id)
+      const classIds = (cls ?? []).map((c: ClassRow) => c.id);
+      if (classIds.length > 0) {
+        const { data: ev, error: evErr } = await supabase
+          .from("class_events")
+          .select("id,title,starts_at,ends_at,class_id")
+          .in("class_id", classIds)
+          .order("starts_at", { ascending: false });
+
+        if (evErr) alert(evErr.message);
+        setEvents((ev ?? []) as EventRow[]);
+      } else {
+        setEvents([]);
+      }
+
+      const { data: t, error: tErr } = await supabase
+        .from("attendance_types")
+        .select("id,name,points,start_minute,end_minute")
+        .eq("org_id", orgRow.id);
+
+      if (tErr) alert(tErr.message);
+      setTypes((t ?? []) as TypeRow[]);
+    })();
   }, []);
 
+  // Load summary rows
   useEffect(() => {
-    if (!eventId) { setRows([]); return; }
-    (async () => {
-      const { data } = await supabase
+    if (!eventId) {
+      setRows([]);
+      return;
+    }
+    void (async () => {
+      const { data, error } = await supabase
         .from("attendance_records_view")
         .select("*")
         .eq("event_id", eventId)
         .order("checked_in_at", { ascending: true });
+
+      if (error) {
+        console.error(error);
+        setLastMsg(error.message);
+        setRows([]);
+        return;
+      }
+
       setRows(data ?? []);
     })();
   }, [eventId]);
 
   function decideStatus(eventStartsAtIso: string, checkedInIso: string) {
-    // If no types are configured, fall back to "present"
     if (sortedTypes.length === 0) return "present";
 
     const start = new Date(eventStartsAtIso).getTime();
     const now = new Date(checkedInIso).getTime();
     const diffMin = Math.max(0, Math.floor((now - start) / 60000));
 
-    const match = sortedTypes.find(t => diffMin >= t.start_minute && (t.end_minute === null || diffMin < t.end_minute));
+    const match = sortedTypes.find(
+      (t) => diffMin >= t.start_minute && (t.end_minute === null || diffMin < t.end_minute)
+    );
+
     return (match?.name ?? sortedTypes[0].name).toLowerCase();
   }
 
   async function startScan() {
-    if (!eventId) { alert("Select an event first"); return; }
+    if (!eventId) {
+      alert("Select an event first");
+      return;
+    }
+    if (!org?.id) {
+      alert("Org not loaded");
+      return;
+    }
+
+    const ev = events.find((x) => x.id === eventId);
+    if (!ev) {
+      alert("Event not found");
+      return;
+    }
+
+    // ✅ Event closed check
+    if (new Date().getTime() > new Date(ev.ends_at).getTime()) {
+      setLastMsg("Event Closed");
+      return;
+    }
 
     setLastMsg("");
     const elId = "reader";
@@ -96,45 +168,74 @@ export default function CheckinPage() {
     await scanner.start(
       { facingMode: "environment" },
       config,
-      async (decodedText) => {
+      async (decodedText: string) => {
         try {
+          // If event ended while scanning
+          if (new Date().getTime() > new Date(ev.ends_at).getTime()) {
+            setLastMsg("Event Closed");
+            return;
+          }
+
           const payload = JSON.parse(decodedText);
           const student_uid = payload?.student_uid;
           if (!student_uid) throw new Error("Invalid QR payload");
 
-          // load event to validate class
-          const { data: ev, error: evErr } = await supabase.from("class_events").select("*").eq("id", eventId).single();
-          if (evErr || !ev) throw new Error(evErr?.message ?? "Event not found");
-
-          // find student in that class
+          // ✅ NEW schema: student is org-level
           const { data: st, error: stErr } = await supabase
             .from("students")
-            .select("*")
+            .select("id,full_name,student_uid")
             .eq("student_uid", student_uid)
-            .eq("class_id", ev.class_id)
+            .eq("org_id", org.id)
             .single();
 
-          if (stErr || !st) { setLastMsg("Student not found for this class."); return; }
+          if (stErr || !st) {
+            setLastMsg("Student not found.");
+            return;
+          }
+
+          // ✅ NEW schema: confirm enrollment in this event's class via class_students
+          const { data: enr, error: enrErr } = await supabase
+            .from("class_students")
+            .select("student_id")
+            .eq("class_id", ev.class_id)
+            .eq("student_id", st.id)
+            .limit(1);
+
+          if (enrErr) throw new Error(enrErr.message);
+          if (!enr || enr.length === 0) {
+            setLastMsg("Student is not enrolled in this class.");
+            return;
+          }
 
           const now = new Date();
           const status = decideStatus(ev.starts_at, now.toISOString());
 
-          const { error } = await supabase.from("attendance").upsert({
-            event_id: eventId,
-            student_id: st.id,
-            checked_in_at: now.toISOString(),
-            status
-          }, { onConflict: "event_id,student_id" });
+          const { error } = await supabase.from("attendance").upsert(
+            {
+              event_id: eventId,
+              student_id: st.id,
+              checked_in_at: now.toISOString(),
+              status,
+            },
+            { onConflict: "event_id,student_id" }
+          );
 
           if (error) throw error;
 
           setLastMsg(`${st.full_name} checked in as ${status.toUpperCase()} at ${now.toLocaleTimeString()}`);
 
-          const { data } = await supabase
+          const { data, error: rErr } = await supabase
             .from("attendance_records_view")
             .select("*")
             .eq("event_id", eventId)
             .order("checked_in_at", { ascending: true });
+
+          if (rErr) {
+            console.error(rErr);
+            setLastMsg(rErr.message);
+            return;
+          }
+
           setRows(data ?? []);
         } catch (e: any) {
           setLastMsg(e?.message ?? "Scan error");
@@ -147,21 +248,27 @@ export default function CheckinPage() {
   async function stopScan() {
     const s = scannerRef.current;
     if (s) {
-      try { await s.stop(); } catch {}
-      try { s.clear(); } catch {}
+      try {
+        await s.stop();
+      } catch {}
+      try {
+        s.clear();
+      } catch {}
     }
     scannerRef.current = null;
     setScanning(false);
   }
 
   useEffect(() => {
-    return () => { stopScan().catch(() => {}); };
+    return () => {
+      void stopScan();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const classForEvent = useMemo(() => {
     if (!event) return "";
-    return classes.find(c => c.id === event.class_id)?.name ?? "";
+    return classes.find((c) => c.id === event.class_id)?.name ?? "";
   }, [event, classes]);
 
   return (
@@ -171,9 +278,15 @@ export default function CheckinPage() {
           <div className="grid sm:grid-cols-2 gap-2">
             <div>
               <label className="text-sm font-medium">Event</label>
-              <Select value={eventId} onChange={(e) => { setEventId(e.target.value); setLastMsg(""); }}>
+              <Select
+                value={eventId}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                  setEventId(e.target.value);
+                  setLastMsg("");
+                }}
+              >
                 <option value="">-- choose --</option>
-                {events.map(e => (
+                {events.map((e) => (
                   <option key={e.id} value={e.id}>
                     {new Date(e.starts_at).toLocaleString()} — {e.title}
                   </option>
@@ -185,27 +298,31 @@ export default function CheckinPage() {
                 </div>
               ) : null}
             </div>
+
             <div>
               <label className="text-sm font-medium">Scanner</label>
               <div className="flex gap-2">
                 {!scanning ? (
-                  <Button onClick={startScan} disabled={!eventId}>Start</Button>
+                  <Button onClick={startScan} disabled={!eventId}>
+                    Start
+                  </Button>
                 ) : (
-                  <Button variant="secondary" onClick={stopScan}>Stop</Button>
+                  <Button variant="secondary" onClick={stopScan}>
+                    Stop
+                  </Button>
                 )}
               </div>
             </div>
           </div>
 
           <Hint>
-            The app decides the attendance type from your configured time windows (see <b>Attendance Types</b>). Entry time is recorded automatically.
+            The app decides the attendance type from your configured time windows (see <b>Attendance Types</b>). Entry
+            time is recorded automatically.
           </Hint>
 
           <div id="reader" className="w-full max-w-md border rounded-xl overflow-hidden bg-black/5" />
 
-          {lastMsg ? (
-            <div className="text-sm p-3 rounded-lg border bg-gray-50">{lastMsg}</div>
-          ) : null}
+          {lastMsg ? <div className="text-sm p-3 rounded-lg border bg-gray-50">{lastMsg}</div> : null}
         </div>
       </Card>
 
@@ -227,7 +344,13 @@ export default function CheckinPage() {
                   <td className="p-2">{new Date(r.checked_in_at).toLocaleTimeString()}</td>
                 </tr>
               ))}
-              {rows.length === 0 ? <tr><td className="p-2 text-gray-600" colSpan={3}>No check-ins yet.</td></tr> : null}
+              {rows.length === 0 ? (
+                <tr>
+                  <td className="p-2 text-gray-600" colSpan={3}>
+                    No check-ins yet.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
