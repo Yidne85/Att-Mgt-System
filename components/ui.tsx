@@ -47,5 +47,3 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
     />
   );
 }
-
-https://coinpayments.testrail.io/index.php?/runs/view/901&group_by=cases:section_id&group_order=asc&display=tree
