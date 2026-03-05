@@ -62,7 +62,8 @@ export default function AppHeader() {
     <header className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
         {/* Brand should always go to landing page, not sign out */}
-        <Link href="/" className="font-semibold tracking-tight">
+        <Link href="/" className="flex items-center gap-2 bg-brand text-white px-3 py-2 rounded-lg">
+  <span className="font-bold">
          ጸባዖት የቀሪ መቆጣጠሪያ
         </Link>
 
