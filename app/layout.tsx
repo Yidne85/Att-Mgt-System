@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
           <AppHeader />
           <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>
-          <footer className="py-10 text-center text-xs text-gray-500">Attendance QR</footer>
+          <footer className="py-10 text-center text-xs text-gray-500">ጸባዖት አቴንዳንስ ሲስተም - 2026</footer>
         </div>
       </body>
     </html>
