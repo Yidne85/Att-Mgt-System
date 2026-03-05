@@ -43,26 +43,26 @@ export default function Dashboard() {
             Check in
           </Link>
 
-          <Link className="px-3 py-2 rounded-xl border bg-white text-sm font-medium shadow-sm" href="/app/events">
+          <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/app/events">
             Events
           </Link>
 
-          <Link className="px-3 py-2 rounded-xl border bg-white text-sm font-medium shadow-sm" href="/app/reports">
+          <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/app/reports">
             Reports & export
           </Link>
 
           {profile?.role === "admin" ? (
             <>
-              <Link className="px-3 py-2 rounded-xl border bg-white text-sm font-medium shadow-sm" href="/app/classes">
+              <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/app/classes">
                 Classes & students
               </Link>
-              <Link className="px-3 py-2 rounded-xl border bg-white text-sm font-medium shadow-sm" href="/app/types">
+              <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/app/types">
                 Attendance types
               </Link>
-              <Link className="px-3 py-2 rounded-xl border bg-white text-sm font-medium shadow-sm" href="/app/users">
+              <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/app/users">
                 Users
               </Link>
-              <Link className="px-3 py-2 rounded-xl border bg-white text-sm font-medium shadow-sm" href="/register">
+              <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/register">
                 Create Admin
               </Link>
             </>
