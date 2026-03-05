@@ -56,15 +56,15 @@ export function Button({
   variant?: "primary" | "secondary" | "danger";
 }) {
   const base =
-    "inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition " +
-    "active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed";
+    "inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold " +
+    "transition active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed";
 
   const styles =
     variant === "primary"
-      ? "bg-brand text-slate-800 hover:bg-brand-dark shadow-sm"
+      ? "bg-brand text-white hover:bg-brand-dark shadow-sm"
       : variant === "secondary"
-      ? "bg-slate-100 text-slate-900 hover:bg-slate-200"
-      : "bg-red-600 text-slate-800 hover:bg-red-700";
+      ? "bg-brand-light text-white hover:bg-brand shadow-sm"
+      : "bg-red-600 text-white hover:bg-red-700 shadow-sm";
 
   return <button {...props} className={`${base} ${styles} ${className}`} />;
 }
