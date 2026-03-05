@@ -38,7 +38,7 @@ export default function Dashboard() {
   return (
     <div className="grid gap-4">
       <Card title="Quick actions">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-4">
           <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/checkin">
             Check in
           </Link>
