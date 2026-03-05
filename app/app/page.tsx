@@ -39,30 +39,30 @@ export default function Dashboard() {
     <div className="grid gap-4">
       <Card title="Quick actions">
         <div className="flex flex-wrap gap-2">
-          <Link className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium shadow-sm" href="/checkin">
+          <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/checkin">
             Check in
           </Link>
 
-          <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/app/events">
+          <Link className="text-brand font-semibold hover:text-brand-dark transition" href="/app/events">
             Events
           </Link>
 
-          <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/app/reports">
+          <Link className="text-brand font-semibold hover:text-brand-dark transition" href="/app/reports">
             Reports & export
           </Link>
 
           {profile?.role === "admin" ? (
             <>
-              <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/app/classes">
+              <Link className="text-brand font-semibold hover:text-brand-dark transition" href="/app/classes">
                 Classes & students
               </Link>
-              <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/app/types">
+              <Link className="text-brand font-semibold hover:text-brand-dark transition" href="/app/types">
                 Attendance types
               </Link>
-              <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/app/users">
+              <Link className="text-brand font-semibold hover:text-brand-dark transition" href="/app/users">
                 Users
               </Link>
-              <Link className="bg-brand text-white rounded-xl p-4 shadow-sm hover:bg-brand-dark transition" href="/register">
+              <Link className="text-brand font-semibold hover:text-brand-dark transition" href="/register">
                 Create Admin
               </Link>
             </>
