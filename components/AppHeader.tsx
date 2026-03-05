@@ -43,7 +43,7 @@ export default function AppHeader() {
           href="/"
           className="flex items-center gap-2 bg-brand text-white px-3 py-2 rounded-lg shadow-sm hover:bg-brand-dark transition"
         >
-          <span className="font-bold">ጸባዖት አቴንዳንስ ሲስተም</span>
+          <span className="font-bold">ጸባዖት አቴንዳንስ</span>
         </Link>
 
         <nav className="flex items-center gap-2">
@@ -55,12 +55,7 @@ export default function AppHeader() {
               >
                 Dashboard
               </Link>
-              <Link
-                href="/app/checkin"
-                className="px-3 py-2 rounded-lg bg-brand-light text-white hover:bg-brand transition"
-              >
-                QR Check-In
-              </Link>
+      
               <button
                 onClick={logout}
                 className="px-3 py-2 rounded-lg bg-brand text-white hover:bg-brand-dark transition shadow-sm"
