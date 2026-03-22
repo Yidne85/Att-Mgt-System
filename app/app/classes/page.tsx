@@ -11,10 +11,10 @@ type Org = { id: string; name: string };
 type ClassRow = { id: string; name: string };
 type StudentRow = { id: string; full_name: string; gender: string; qr_data_url: string | null };
 
-function uid(len=12){
-  const chars="abcdefghijklmnopqrstuvwxyz0123456789";
-  let s="";
-  for(let i=0;i<len;i++) s += chars[Math.floor(Math.random()*chars.length)];
+function uid(len = 12) {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let s = "";
+  for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
   return s;
 }
 
@@ -28,364 +28,454 @@ export default function ClassesPage() {
   const [editClassName, setEditClassName] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const classRow = useMemo(() => classes.find(c => c.id === selectedClass) ?? null, [classes, selectedClass]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  const [updateCopyFromClassId, setUpdateCopyFromClassId] = useState<string>("");
+  const [sourceStudents, setSourceStudents] = useState<StudentRow[]>([]);
+  const [selectedImportStudentIds, setSelectedImportStudentIds] = useState<string[]>([]);
+  const [loadingSourceStudents, setLoadingSourceStudents] = useState(false);
+  const [copyingStudents, setCopyingStudents] = useState(false);
+  const [sourceStudentSearch, setSourceStudentSearch] = useState("");
+
+  const classRow = useMemo(() => classes.find((c) => c.id === selectedClass) ?? null, [classes, selectedClass]);
   const className = classRow?.name ?? "";
+
+  const total = students.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const pagedStudents = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return students.slice(start, start + pageSize);
+  }, [students, page, pageSize]);
+
+  const filteredSourceStudents = useMemo(() => {
+    const q = sourceStudentSearch.trim().toLowerCase();
+    if (!q) return sourceStudents;
+
+    return sourceStudents.filter(
+      (s) =>
+        s.full_name.toLowerCase().includes(q) ||
+        s.gender.toLowerCase().includes(q)
+    );
+  }, [sourceStudents, sourceStudentSearch]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedClass, students.length, pageSize]);
 
   async function loadAll() {
     setLoading(true);
+
     const { data: sess } = await supabase.auth.getSession();
-    if (!sess.session) { window.location.href = "/login"; return; }
-      const p = await requireProfile();
-      if (p.role !== "admin") { window.location.href = "/app"; return; }
-      const userId = sess.session.user.id;
-    const { data: orgRow } = await supabase.from("orgs").select("*").eq("id", p.org_id).single();
-    setOrg(orgRow);
-    const { data: cls } = await supabase.from("classes").select("*").eq("org_id", orgRow.id).order("name");
-    setClasses(cls ?? []);
+    if (!sess.session) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const p = await requireProfile();
+    if (p.role !== "admin") {
+      window.location.href = "/app";
+      return;
+    }
+
+    const { data: orgRow, error: orgErr } = await supabase.from("orgs").select("*").eq("id", p.org_id).single();
+    if (orgErr || !orgRow) {
+      alert(orgErr?.message ?? "Organization not found");
+      setLoading(false);
+      return;
+    }
+
+    setOrg(orgRow as Org);
+
+    const { data: cls, error: clsErr } = await supabase
+      .from("classes")
+      .select("*")
+      .eq("org_id", orgRow.id)
+      .order("name");
+
+    if (clsErr) {
+      alert(clsErr.message);
+      setClasses([]);
+      setLoading(false);
+      return;
+    }
+
+    setClasses((cls ?? []) as ClassRow[]);
     setLoading(false);
   }
 
   async function loadStudents(classId: string) {
-  setSelectedClass(classId);
-  // Load students enrolled in this class via class_students join table
-  const { data: cs, error } = await supabase
-    .from("class_students")
-    .select("student:students(id,full_name,gender,qr_data_url)")
-    .eq("class_id", classId)
-    .order("created_at", { ascending: true });
+    setSelectedClass(classId);
 
-  if (error) console.error(error);
-  const st = (cs ?? []).map((r: any) => r.student).filter(Boolean);
-  setStudents(st);
-  const cr = classes.find((c) => c.id === classId);
-  setEditClassName(cr?.name ?? "");
-}
+    const { data: cs, error } = await supabase
+      .from("class_students")
+      .select("created_at, student:students(id,full_name,gender,qr_data_url)")
+      .eq("class_id", classId)
+      .order("created_at", { ascending: true });
 
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
-  useEffect(() => { loadAll(); }, []);
+    const st = (cs ?? []).map((r: any) => r.student).filter(Boolean);
+    setStudents(st);
+
+    const cr = classes.find((c) => c.id === classId);
+    setEditClassName(cr?.name ?? "");
+  }
+
+  useEffect(() => {
+    void loadAll();
+  }, []);
 
   useEffect(() => {
     if (selectedClass) {
-      const cr = classes.find(c => c.id === selectedClass);
+      const cr = classes.find((c) => c.id === selectedClass);
       setEditClassName(cr?.name ?? "");
     }
   }, [classes, selectedClass]);
 
   async function createClass() {
-  if (!org?.id || !newClassName.trim()) return;
+    if (!org?.id || !newClassName.trim()) return;
 
-  // Validate unique class name (per organization)
-  const { data: existing } = await supabase
-    .from("classes")
-    .select("id")
-    .eq("org_id", org.id)
-    .ilike("name", newClassName.trim())
-    .limit(1);
+    const trimmed = newClassName.trim();
 
-  if (existing && existing.length > 0) {
-    alert("Class name already exists. Please use a different name.");
-    return;
-  }
+    const { data: existingClass } = await supabase
+      .from("classes")
+      .select("id")
+      .eq("org_id", org.id)
+      .eq("name", trimmed)
+      .maybeSingle();
 
-  const { data: created, error } = await supabase
-    .from("classes")
-    .insert({ org_id: org.id, name: newClassName.trim() })
-    .select("id")
-    .single();
+    if (existingClass) {
+      alert("A class with this name already exists.");
+      return;
+    }
 
-  if (error) {
-    alert(error.message);
-    return;
-  }
+    const { data: created, error } = await supabase
+      .from("classes")
+      .insert({ org_id: org.id, name: trimmed })
+      .select("id")
+      .single();
 
-  // Optional: copy students from another class (reuse same student IDs / QR codes)
-  const newClassId = created.id as string;
-  if (copyFromClassId) {
-    const { data: existingEnrollments, error: e2 } = await supabase
-      .from("class_students")
-      .select("student_id")
-      .eq("class_id", copyFromClassId);
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
-    if (e2) {
-      alert(e2.message);
-    } else {
-      const rows = (existingEnrollments ?? []).map((r: any) => ({ class_id: newClassId, student_id: r.student_id }));
-      if (rows.length) {
-        const { error: e3 } = await supabase.from("class_students").insert(rows);
-        if (e3) alert(e3.message);
+    const newClassId = created.id as string;
+
+    if (copyFromClassId) {
+      const { data: existingEnrollments, error: e2 } = await supabase
+        .from("class_students")
+        .select("student_id")
+        .eq("class_id", copyFromClassId);
+
+      if (e2) {
+        alert(e2.message);
+      } else {
+        const rows = (existingEnrollments ?? []).map((r: any) => ({
+          class_id: newClassId,
+          student_id: r.student_id,
+        }));
+
+        if (rows.length) {
+          const { error: e3 } = await supabase.from("class_students").insert(rows);
+          if (e3) alert(e3.message);
+        }
       }
     }
+
+    setNewClassName("");
+    setCopyFromClassId("");
+    await loadAll();
+    alert("Class created.");
   }
 
-  setNewClassName("");
-  setCopyFromClassId("");
-  await loadAll();
-}
-
-
   async function updateClass() {
-    if (!selectedClass || !editClassName.trim()) return;
-    const { error } = await supabase.from("classes").update({ name: editClassName.trim() }).eq("id", selectedClass);
-    if (error) { alert(error.message); return; }
+    if (!selectedClass || !editClassName.trim() || !org?.id) return;
+
+    const trimmed = editClassName.trim();
+
+    const { data: existingDuplicate } = await supabase
+      .from("classes")
+      .select("id")
+      .eq("org_id", org.id)
+      .eq("name", trimmed)
+      .neq("id", selectedClass)
+      .maybeSingle();
+
+    if (existingDuplicate) {
+      alert("A class with this name already exists.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("classes")
+      .update({ name: trimmed })
+      .eq("id", selectedClass);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
     await loadAll();
+    alert("Class updated.");
   }
 
   async function deleteClass() {
     if (!selectedClass) return;
-    if (!confirm("Delete this class? This will also delete its students and attendance records for its events.")) return;
+    if (!confirm("Delete this class? This will also delete its events and attendance records.")) return;
+
     const { error } = await supabase.from("classes").delete().eq("id", selectedClass);
-    if (error) { alert(error.message); return; }
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
     setSelectedClass("");
     setStudents([]);
+    setUpdateCopyFromClassId("");
+    setSourceStudents([]);
+    setSelectedImportStudentIds([]);
     await loadAll();
+    alert("Class deleted.");
   }
 
   async function addStudent(full_name: string, gender: string) {
-  if (!selectedClass || !org) return;
+    if (!selectedClass || !org) return;
 
-  const name = full_name.toString().trim();
-  if (!name) return;
+    const name = full_name.toString().trim();
+    if (!name) return;
 
-  // Try to reuse existing student in this org (basic de-dup by name+gender)
-  const { data: existing } = await supabase
-    .from("students")
-    .select("id,full_name,gender,qr_data_url")
-    .eq("org_id", org.id)
-    .ilike("full_name", name)
-    .eq("gender", gender)
-    .limit(1);
-
-  let studentId: string | null = existing && existing[0] ? existing[0].id : null;
-
-  if (!studentId) {
-    const student_uid = uid(14);
-    const qr_data_url = await makeStudentQrDataUrl({ student_uid }, name);
-
-    const { data: created, error: createErr } = await supabase
+    const { data: existing, error: exErr } = await supabase
       .from("students")
-      .insert({
-        org_id: org.id,
-        student_uid,
-        full_name: name,
-        gender,
-        qr_data_url,
-      })
       .select("id")
-      .single();
+      .eq("org_id", org.id)
+      .eq("full_name", name)
+      .eq("gender", gender)
+      .limit(1);
 
-    if (createErr) {
-      alert(createErr.message);
+    if (exErr) {
+      alert(exErr.message);
       return;
     }
-    studentId = created.id;
-  }
 
-  // Enroll into class (one QR across classes)
-  const { error: enrollErr } = await supabase.from("class_students").insert({
-    class_id: selectedClass,
-    student_id: studentId,
-  });
+    let studentId: string | null = existing && existing[0] ? existing[0].id : null;
 
-  if (enrollErr) alert(enrollErr.message);
-  await loadStudents(selectedClass);
-}
+    if (!studentId) {
+      const student_uid = uid(14);
+      const qr_data_url = await makeStudentQrDataUrl(student_uid, name);
 
+      const { data: created, error: createErr } = await supabase
+        .from("students")
+        .insert({
+          org_id: org.id,
+          student_uid,
+          full_name: name,
+          gender,
+          qr_data_url,
+        })
+        .select("id")
+        .single();
 
-  async function deleteStudent(studentId: string) {
-  if (!selectedClass) return;
-  if (!confirm("Remove this student from this class?")) return;
+      if (createErr) {
+        alert(createErr.message);
+        return;
+      }
 
-  const { error } = await supabase
-    .from("class_students")
-    .delete()
-    .eq("class_id", selectedClass)
-    .eq("student_id", studentId);
+      studentId = created.id;
+    }
 
-  if (error) alert(error.message);
-  await loadStudents(selectedClass);
-}
-
-
-  async function onCsvUpload(file: File) {
-    if (!selectedClass) { alert("Select a class first"); return; }
-
-    // Read as UTF-8 text so Amharic characters are preserved
-    const text = await new Promise<string>((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(String(r.result ?? ""));
-      r.onerror = () => reject(new Error("Failed to read file"));
-      r.readAsText(file, "utf-8");
+    const { error: enrollErr } = await supabase.from("class_students").insert({
+      class_id: selectedClass,
+      student_id: studentId,
     });
 
-    // Strip BOM if present
-    const cleaned = text.replace(/^\uFEFF/, "");
+    if (enrollErr) {
+      alert(enrollErr.message);
+    } else {
+      alert("Student added.");
+    }
 
-    Papa.parse(cleaned, {
+    await loadStudents(selectedClass);
+  }
+
+  async function deleteStudent(studentId: string) {
+    if (!selectedClass) return;
+    if (!confirm("Remove this student from this class?")) return;
+
+    const { error } = await supabase
+      .from("class_students")
+      .delete()
+      .eq("class_id", selectedClass)
+      .eq("student_id", studentId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    await loadStudents(selectedClass);
+    alert("Student removed from class.");
+  }
+
+  async function onCsvUpload(file: File) {
+    if (!selectedClass) {
+      alert("Select a class first");
+      return;
+    }
+
+    const text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file, "utf-8");
+    });
+
+    const clean = text.replace(/^\uFEFF/, "");
+
+    Papa.parse(clean, {
       header: true,
       skipEmptyLines: true,
       complete: async (results: any) => {
-        const rows = (results.data as any[]).map(r => ({
-          full_name: (r.full_name ?? r.name ?? "").toString().trim(),
-          gender: (r.gender ?? "").toString().trim() || "unknown",
-        })).filter(r => r.full_name);
+        const rows = (results.data as any[])
+          .map((r) => ({
+            full_name: (r.full_name ?? r.name ?? "").toString().trim(),
+            gender: (r.gender ?? "").toString().trim() || "unknown",
+          }))
+          .filter((r) => r.full_name);
 
         for (const r of rows) {
           await addStudent(r.full_name, r.gender);
         }
+
         alert(`Imported ${rows.length} students.`);
       },
       error: (err: any) => alert(err.message),
     });
   }
 
-  return (
-    <div className="grid gap-4">
-      <Card title="Create class">
-  <div className="grid sm:grid-cols-3 gap-2 max-w-3xl">
-    <Input placeholder="Class name" value={newClassName} onChange={(e) => setNewClassName(e.target.value)} />
-    <Select value={copyFromClassId} onChange={(e) => setCopyFromClassId(e.target.value)}>
-      <option value="">(Optional) Copy students from class…</option>
-      {classes.map((c) => (
-        <option key={c.id} value={c.id}>{c.name}</option>
-      ))}
-    </Select>
-    <Button onClick={createClass} disabled={!newClassName.trim() || !org?.id}>Create</Button>
-  </div>
-  <Hint>Tip: Copying students keeps the same QR code across classes.</Hint>
-</Card>
+  async function loadSourceStudentsForImport(classId: string) {
+    setUpdateCopyFromClassId(classId);
+    setSelectedImportStudentIds([]);
+    setSourceStudents([]);
+    setSourceStudentSearch("");
 
+    if (!classId) return;
 
-      <Card title="Classes">
-        {loading ? <div className="text-sm text-gray-600">Loading…</div> : (
-          <div className="grid gap-3">
-            <div className="max-w-md">
-              <label className="text-sm font-medium">Select class</label>
-              <Select value={selectedClass} onChange={(e) => loadStudents(e.target.value)}>
-                <option value="">-- choose --</option>
-                {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </Select>
-            </div>
+    try {
+      setLoadingSourceStudents(true);
 
-            {selectedClass ? (
-              <div className="grid gap-4">
-                <Card title="Edit class">
-                  <div className="grid sm:grid-cols-3 gap-2 max-w-2xl items-end">
-                    <div className="sm:col-span-2">
-                      <label className="text-sm font-medium">Class name</label>
-                      <Input value={editClassName} onChange={(e) => setEditClassName(e.target.value)} />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button onClick={updateClass} disabled={!editClassName.trim()}>Update</Button>
-                      <Button variant="secondary" onClick={deleteClass}>Delete</Button>
-                    </div>
-                  </div>
-                </Card>
+      const { data: cs, error } = await supabase
+        .from("class_students")
+        .select("student:students(id,full_name,gender,qr_data_url)")
+        .eq("class_id", classId)
+        .order("created_at", { ascending: true });
 
-                <Card title={`Students in ${className}`}>
-                  <div className="grid gap-3">
-                    <AddStudentForm onAdd={addStudent} />
+      if (error) throw error;
 
-                    <div className="border-t pt-3">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div>
-                          <label className="text-sm font-medium">Upload students via CSV</label>
-                          <input
-                            type="file"
-                            accept=".csv"
-                            className="block mt-2 text-sm"
-                            onChange={(e) => {
-                              const f = e.target.files?.[0];
-                              if (f) onCsvUpload(f);
-                            }}
-                          />
-                        </div>
-                        <a className="text-sm text-blue-700 underline" href="/sample_students.csv" download>
-                          Download sample CSV
-                        </a>
-                      </div>
-                      <Hint>CSV columns: full_name, gender (or name, gender). Example row: John Doe,male</Hint>
-                    </div>
+      const st = (cs ?? []).map((r: any) => r.student).filter(Boolean);
+      setSourceStudents(st);
+    } catch (e: any) {
+      alert(e?.message ?? "Failed to load source students.");
+    } finally {
+      setLoadingSourceStudents(false);
+    }
+  }
 
-                    <div className="overflow-auto border rounded-lg">
-                      <table className="min-w-full text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="text-left p-2">Full name</th>
-                            <th className="text-left p-2">Gender</th>
-                            <th className="text-left p-2">QR preview</th>
-                            <th className="text-left p-2">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {students.map(s => (
-                            <tr key={s.id} className="border-t">
-                              <td className="p-2">{s.full_name}</td>
-                              <td className="p-2">{s.gender}</td>
-                              <td className="p-2">
-                                {s.qr_data_url ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img alt="QR" src={s.qr_data_url} className="w-12 h-12 border rounded" />
-                                ) : "—"}
-                              </td>
-                              <td className="p-2">
-                                <div className="flex flex-wrap gap-2">
-                                  <a className="text-blue-700 underline" href={`/app/student/${s.id}`}>View / Edit / Download</a>
-                                  <Button variant="secondary" onClick={() => deleteStudent(s.id)}>Delete</Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                          {students.length === 0 ? (
-                            <tr><td className="p-2 text-gray-600" colSpan={4}>No students yet.</td></tr>
-                          ) : null}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            ) : <div className="text-sm text-gray-600">Select a class to manage students.</div>}
-          </div>
-        )}
-      </Card>
-    </div>
-  );
-}
+  function toggleImportStudent(studentId: string) {
+    setSelectedImportStudentIds((prev) =>
+      prev.includes(studentId)
+        ? prev.filter((id) => id !== studentId)
+        : [...prev, studentId]
+    );
+  }
 
-function AddStudentForm({ onAdd }: { onAdd: (full_name: string, gender: string) => Promise<void> }) {
-  const [fullName, setFullName] = useState("");
-  const [gender, setGender] = useState("male");
-  const [loading, setLoading] = useState(false);
+  function toggleSelectAllSourceStudents() {
+    const filteredIds = filteredSourceStudents.map((s) => s.id);
 
-  return (
-    <div className="grid sm:grid-cols-3 gap-2 items-end">
-      <div className="sm:col-span-2">
-        <label className="text-sm font-medium">Add student</label>
-        <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full name" />
-      </div>
-      <div>
-        <label className="text-sm font-medium">Gender</label>
-        <Select value={gender} onChange={(e) => setGender(e.target.value)}>
-          <option value="male">male</option>
-          <option value="female">female</option>
-          <option value="other">other</option>
-          <option value="unknown">unknown</option>
-        </Select>
-      </div>
-      <div className="sm:col-span-3">
-        <Button
-          onClick={async () => {
-            if (!fullName.trim()) return;
-            setLoading(true);
-            await onAdd(fullName.trim(), gender);
-            setFullName("");
-            setLoading(false);
-          }}
-          disabled={loading || !fullName.trim()}
-        >
-          {loading ? "Adding..." : "Add student"}
-        </Button>
-      </div>
-    </div>
-  );
+    const allFilteredSelected =
+      filteredIds.length > 0 &&
+      filteredIds.every((id) => selectedImportStudentIds.includes(id));
+
+    if (allFilteredSelected) {
+      setSelectedImportStudentIds((prev) =>
+        prev.filter((id) => !filteredIds.includes(id))
+      );
+    } else {
+      setSelectedImportStudentIds((prev) => [
+        ...new Set([...prev, ...filteredIds]),
+      ]);
+    }
+  }
+
+  async function importSelectedStudentsToExistingClass() {
+    if (!selectedClass) {
+      alert("Select a class first.");
+      return;
+    }
+
+    if (!updateCopyFromClassId) {
+      alert("Choose a source class.");
+      return;
+    }
+
+    if (selectedClass === updateCopyFromClassId) {
+      alert("You cannot import students from the same class.");
+      return;
+    }
+
+    if (selectedImportStudentIds.length === 0) {
+      alert("Select at least one student to import.");
+      return;
+    }
+
+    try {
+      setCopyingStudents(true);
+
+      const { data: existingEnrollments, error: existingErr } = await supabase
+        .from("class_students")
+        .select("student_id")
+        .eq("class_id", selectedClass);
+
+      if (existingErr) throw existingErr;
+
+      const existingIds = new Set((existingEnrollments ?? []).map((r: any) => r.student_id));
+
+      const rowsToInsert = selectedImportStudentIds
+        .filter((studentId) => !existingIds.has(studentId))
+        .map((studentId) => ({
+          class_id: selectedClass,
+          student_id: studentId,
+        }));
+
+      if (rowsToInsert.length === 0) {
+        alert("All selected students are already added to this class.");
+        return;
+      }
+
+      const { error: insertErr } = await supabase
+        .from("class_students")
+        .insert(rowsToInsert);
+
+      if (insertErr) throw insertErr;
+
+      alert(`Imported ${rowsToInsert.length} selected students successfully.`);
+      setUpdateCopyFromClassId("");
+      setSourceStudents([]);
+      setSelectedImportStudentIds([]);
+      setSourceStudentSearch("");
+      await loadStudents(selectedClass);
+    } catch (e: any) {
+      alert(e?.message ?? "Failed to import selected students.");
+    } finally {
+      setCopyingStudents(false);
+    }
+  }
+
+  return null;
 }
