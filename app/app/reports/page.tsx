@@ -7,6 +7,7 @@ import { Button, Card, Input, Select, Hint } from "../../../components/ui";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { NOTO_ETHIOPIC_BASE64 } from "../../../lib/fonts/noto-ethiopic";
 
 type ClassRow = { id: string; name: string };
 type EventRow = { id: string; title: string; starts_at: string; ends_at: string; class_id: string };
@@ -255,35 +256,68 @@ export default function ReportsPage() {
   }
 
   function exportPdfPoints() {
-    if (pointsRows.length === 0) return;
-    const doc = new jsPDF();
-    doc.text("Attendance points report", 14, 14);
+  const doc = new jsPDF();
+  setupEthiopicFont(doc);
 
-    autoTable(doc, {
-      head: [["Student name", "Total events", "Points", "Date range"]],
-      body: pointsRows.map((r) => [r.full_name, String(r.total_events), String(r.points_sum), r.date_range]),
-      startY: 20,
-      styles: { fontSize: 9 },
-    });
+  doc.setFont("NotoEthiopic");
+  doc.setFontSize(12);
+  doc.text("Attendance Points Summary", 14, 14);
 
-    doc.save("attendance_points.pdf");
-  }
+  autoTable(doc, {
+    startY: 20,
+    head: [["Student name", "Total events", "Points", "Date range"]],
+    body: rows.map((r) => [
+      String(r.full_name ?? ""),
+      String(r.total_events ?? ""),
+      String(r.points_sum ?? ""),
+      String(r.date_range ?? ""),
+    ]),
+    styles: {
+      font: "NotoEthiopic",
+      fontSize: 9,
+    },
+    headStyles: {
+      font: "NotoEthiopic",
+    },
+  });
 
-  function exportPdfDetails() {
-    if (details.length === 0) return;
-    const doc = new jsPDF();
-    doc.text("Attendance details report", 14, 14);
+  doc.save("attendance-points-summary.pdf");
+}
 
-    autoTable(doc, {
-      head: [["Student name", "Event", "Type", "Points", "Entry time"]],
-      body: details.map((r) => [r.student_name, r.event_title, r.status, String(r.points), new Date(r.checked_in_at).toLocaleString()]),
-      startY: 20,
-      styles: { fontSize: 9 },
-    });
+function exportPdfDetails() {
+  const doc = new jsPDF();
+  setupEthiopicFont(doc);
 
-    doc.save("attendance_details.pdf");
-  }
+  doc.setFont("NotoEthiopic");
+  doc.setFontSize(12);
+  doc.text("Attendance Details", 14, 14);
 
+  autoTable(doc, {
+    startY: 20,
+    head: [["Student", "Attendance type", "Entry time", "Event"]],
+    body: detailRows.map((r) => [
+      String(r.full_name ?? ""),
+      String(r.status ?? ""),
+      String(r.checked_in_at ?? ""),
+      String(r.event_title ?? ""),
+    ]),
+    styles: {
+      font: "NotoEthiopic",
+      fontSize: 9,
+    },
+    headStyles: {
+      font: "NotoEthiopic",
+    },
+  });
+
+  doc.save("attendance-details.pdf");
+}
+  
+function setupEthiopicFont(doc: any) {
+  doc.addFileToVFS("NotoSansEthiopic-Regular.ttf", NOTO_ETHIOPIC_BASE64);
+  doc.addFont("NotoSansEthiopic-Regular.ttf", "NotoEthiopic", "normal");
+  doc.setFont("NotoEthiopic");
+}
   return (
     <div className="grid gap-4">
       <Card title="Reports & export">
